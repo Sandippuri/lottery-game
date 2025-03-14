@@ -1,57 +1,77 @@
-<!-- # 🏛️ Blind Auction -->
+# Lottery Game Aleo Program
 
-[//]: # (<img alt="workshop/auction" width="1412" src="../.resources/auction.png">)
+## Overview
+The `lottery_game_puri.aleo` program is a smart contract deployed on the Aleo blockchain that enables users to participate in a lottery game using zero-knowledge proofs. The contract supports both public and private lottery ticket purchases, ensuring transaction privacy while maintaining verifiable fairness through the Aleo platform's zero-knowledge capabilities.
 
-A first-price sealed-bid auction in Leo.
+## Deployment
+This program is deployed on the Aleo blockchain, leveraging `credits.aleo` for native token transactions to handle ticket purchases and prize distributions.
 
-## Summary
+## Functions
 
-A first-price sealed-bid auction (or blind auction) is a type of auction in which each participant submits a bid without knowing the bids of the other participants. 
-The bidder with the highest bid wins the auction.
+1. `initialize(owner: address, amount: u64) -> Future`
+   
+   Initializes the contract with an admin address and sets the initial ticket price.
 
-In this model, there are two parties: the auctioneer and the bidders.
-- **Bidder**: A participant in the auction.
-- **Auctioneer**: The party responsible for conducting the auction.
+2. `buy_public(amount: [u64; 5], Lottery_number: [[u8; 5]; 5], day: u16) -> (Lottery, Future)`
+   
+   Allows users to purchase lottery tickets publicly using Aleo credits. The function creates a lottery record containing the chosen numbers and validates the transaction.
 
-We make the following assumptions about the auction:
-- The auctioneer is honest. That is, the auctioneer will resolve **all** bids in the order they are received. The auctioneer will not tamper with the bids.
-- There is no limit to the number of bids.
-- The auctioneer knows the identity of all bidders, but bidders do not necessarily know the identity of other bidders.
+3. `buy_private(input_record: credits.aleo/credits, amount: [u64; 5], Lottery_number: [[u8; 5]; 5], day: u16) -> (Lottery, credits.aleo/credits, Future)`
+   
+   Enables users to privately purchase lottery tickets using Aleo credits while maintaining transaction privacy.
 
-Under this model, we require that:
-- Bidders do not learn any information about the value of other bids.
+4. `generate_winner(day: u16) -> Future`
+   
+   Admin-only function that generates a random winning number combination for the specified lottery day using ChaCha random number generation.
 
-### Auction Flow
-The auction is conducted in a series of stages.
-- **Bidding**: In the bidding stage, bidders submit bids to the auctioneer. They do so by invoking the `place_bid` function.
-- **Resolution**:  In the resolution stage, the auctioneer resolves the bids in the order they were received. The auctioneer does so by invoking the `resolve` function. The resolution process produces a single winning bid.
-- **Finishing**: In this stage, the auctioneer finishes the auction by invoking the `finish` function. This function returns the winning bid to the bidder, which the bidder can then use to claim the item.
+5. `match_lottery(input_record: Lottery) -> Future`
+   
+   Matches a user's lottery ticket against the winning numbers and calculates the winnings based on matched numbers.
 
+6. `claim(amount: u64) -> (credits.aleo/credits, Future)`
+   
+   Allows users to claim their lottery winnings in Aleo credits based on their accumulated balance.
 
-## Language Features and Concepts
-- `record` declarations
-- `assert_eq`
-- record ownership
+7. `transfer_ownership(public new_owner: address) -> Future`
+   
+   Transfers contract ownership to a new admin address.
 
-## Running the Program
+8. `unpause() -> Future`
+   
+   Unpauses the contract, allowing lottery ticket purchases.
 
-Leo provides users with a command line interface for compiling and running Leo programs.
+9. `pause() -> Future`
+   
+   Pauses the contract, preventing lottery ticket purchases.
 
-### Configuring Accounts
-The `.env` file contains a private key. 
-This is the account that will be used to sign transactions and is checked for record ownership.
-When executing programs as different parties, be sure to set the `PRIVATE_KEY` field in `.env` to the appropriate values.
-See `./run.sh` for an example of how to run the program as different parties.
+10. `withdraw(amount: u64) -> Future`
+    
+    Allows the admin to withdraw funds from the contract.
 
+## Key Concepts
 
-The [Aleo SDK](https://github.com/ProvableHQ/leo/tree/mainnet) provides an interface for generating new accounts.
-To generate a new account, navigate to [provable.tools](https://provable.tools).
+### Lottery Structure
+- Each lottery ticket consists of 5 rows of 5 numbers, with each number ranging from 0 to 31
+- Lottery tickets are purchased for specific days
+- Winning numbers are generated randomly using the ChaCha algorithm
 
+### Privacy Protection
+- Private ticket purchases maintain user anonymity through zero-knowledge proofs
+- Transaction amounts and lottery numbers remain confidential
+- Winners can claim prizes privately
 
-### Providing inputs via the command line.
-```bash
-leo run <function_name> <input_1> <input_2> ...
-```
-See `./run.sh` for an example.
+### Winning Mechanism
+- The `compareArray` function matches user numbers against winning numbers
+- Points are awarded based on the number of matches
+- The `count_points` function calculates the total winnings based on the number of matches
 
+### Administration
+- Contract can be paused/unpaused by the admin
+- Ownership can be transferred to a new admin
+- Admin can withdraw funds from the contract
 
+## Security Features
+- Input validation ensures lottery numbers are within valid ranges
+- Transaction status checks prevent operations during paused state
+- Admin-only functions are protected by address verification
+- Random number generation uses the secure ChaCha algorithm
