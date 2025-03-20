@@ -1,4 +1,5 @@
 import credits.aleo;
+import token_registry.aleo; 
 
 program lottery_game_puri.aleo{
 
@@ -15,10 +16,15 @@ program lottery_game_puri.aleo{
 
     mapping is_available: field => bool;
     mapping winner_number: u16 => [u8; 5];
+
     mapping user_balance: field => u64;
+    mapping user_token_balance: field => u64;
+
     mapping cuurent_amount: bool => u64;
+    mapping current_amount_token: field => u128;
     mapping admin: bool => address;
     mapping status: bool => u8;
+    mapping winning_price: bool => [u64; 5];
 
     const UNPAUSED_STATUS: u8 = 1u8;
     const PAUSED_STATUS: u8 = 0u8;
@@ -41,7 +47,30 @@ program lottery_game_puri.aleo{
         let zero_hash : field = BHP256::hash_to_field(zero);
         is_available.set(zero_hash, true);
     }
-    
+
+    async transition set_winning_price(prize_money: [u64;5]) -> Future {
+         return (finalize_set_winning_price(self.caller, prize_money));
+    }
+
+    async function finalize_set_winning_price(from:address, amount: [u64;5]) {
+        let current_owner: address = admin.get(true);
+        assert_eq(from, current_owner);
+        winning_price.set(true, amount);
+
+    }
+
+
+    async transition set_token_price(token_id: field, price: u128) -> Future {
+        assert(price > 0u128);
+        return (finalize_set_token_price(self.caller, price, token_id));
+    }
+
+    async function finalize_set_token_price(owner: address, price:u128, token_id: field){
+        assert(admin.contains(true).not());
+        admin.set(true, owner);
+        current_amount_token.set(token_id, price);
+    }
+
     async transition buy_public(amount: [u64; 5], Lottery_number: [[u8; 5]; 5], day: u16) -> (Lottery, Future) {    
         for i: u8 in 0u8..5u8 {
             for j: u8 in 0u8..5u8 {
@@ -103,6 +132,67 @@ program lottery_game_puri.aleo{
     }
 
 
+    async transition buy_public_token(amount: [u128; 5], Lottery_number: [[u8; 5]; 5], day: u16, tokenId: field) -> (Lottery, Future) {    
+        for i: u8 in 0u8..5u8 {
+            for j: u8 in 0u8..5u8 {
+                assert(Lottery_number[i][j] <= 32u8);
+            }
+        } 
+        let total_amount: u128 = 0u128;
+        for i: u8 in 0u8..5u8 {
+            total_amount += amount[i];
+        }
+        let lottery: Lottery = Lottery {
+            owner: self.caller,
+            lottery: Lottery_number,
+            days: day
+        };
+
+        let Lottery_number_hash1 : field = BHP256::hash_to_field( LotteryHash {
+            lottery: Lottery_number[0u8],
+            day: day
+        });
+        let Lottery_number_hash2 : field = BHP256::hash_to_field( LotteryHash {
+            lottery: Lottery_number[1u8],
+            day: day
+        });
+        let Lottery_number_hash3 : field = BHP256::hash_to_field( LotteryHash {
+            lottery: Lottery_number[2u8],
+            day: day
+        });
+        let Lottery_number_hash4 : field = BHP256::hash_to_field( LotteryHash {
+            lottery: Lottery_number[3u8],
+            day: day
+        });
+        let Lottery_number_hash5 : field = BHP256::hash_to_field( LotteryHash {
+            lottery: Lottery_number[4u8],
+            day: day
+        });
+        
+        let lottery_hashes: [field; 5] = [Lottery_number_hash1, Lottery_number_hash2, Lottery_number_hash3, Lottery_number_hash4, Lottery_number_hash5];
+        let transfer_output: Future = token_registry.aleo/transfer_public_as_signer(tokenId, self.address, total_amount);
+
+        return (lottery, finalize_buy_public_token(transfer_output, total_amount, day, lottery_hashes, Lottery_number[0u8], tokenId));   
+    }
+
+    async function finalize_buy_public_token(f:Future, total_amount: u128, day: u16, Lottery_number_hash: [field; 5], lottery: [u8; 5], tokenId: field){
+        f.await();
+        assert_eq(winner_number.contains(day), false);
+        assert_eq(status.get(true), UNPAUSED_STATUS);
+        assert_eq(total_amount % current_amount_token.get(tokenId), 0u128);
+        let zero_hash : field = BHP256::hash_to_field( LotteryHash {
+            lottery:[0u8,0u8,0u8,0u8,0u8],
+            day: day
+        });
+        for i: u8 in 0u8..5u8 {
+            if(Lottery_number_hash[i] != zero_hash){
+                assert_eq(is_available.contains(Lottery_number_hash[i]), false);
+                is_available.set(Lottery_number_hash[i], true);
+            }
+        }
+    }
+
+
     // mapping amount -> make it dynamic
     async transition buy_private(input_record: credits.aleo/credits, amount: [u64; 5], Lottery_number: [[u8; 5]; 5], day: u16,) -> (Lottery, credits.aleo/credits, Future) {
         for i: u8 in 0u8..5u8 {
@@ -150,6 +240,52 @@ program lottery_game_puri.aleo{
         }
     }
 
+    async transition buy_private_token(input_record: token_registry.aleo/Token, amount: [u64; 5], Lottery_number: [[u8; 5]; 5], day: u16,) -> (Lottery, token_registry.aleo/Token, Future) {
+        for i: u8 in 0u8..5u8 {
+            for j: u8 in 0u8..5u8 {
+                assert(Lottery_number[i][j] < 32u8);
+            }
+        } 
+        let total_amount: u64 = 0u64;
+        for i: u8 in 0u8..5u8 {
+            total_amount += amount[i];
+        }
+
+        let lottery: Lottery = Lottery {
+            owner: self.caller,
+            lottery: Lottery_number,
+            days: day
+        };
+        
+        let transfer_output: (token_registry.aleo/Token, Future) = token_registry.aleo/transfer_private_to_public(self.address, total_amount as u128,input_record);
+        
+        let Lottery_number_hash1 : field = BHP256::hash_to_field(Lottery_number[0u8]);
+        let Lottery_number_hash2 : field = BHP256::hash_to_field(Lottery_number[1u8]);
+        let Lottery_number_hash3 : field = BHP256::hash_to_field(Lottery_number[2u8]);
+        let Lottery_number_hash4 : field = BHP256::hash_to_field(Lottery_number[3u8]);
+        let Lottery_number_hash5 : field = BHP256::hash_to_field(Lottery_number[4u8]);
+        let lottery_hashes: [field; 5] = [Lottery_number_hash1, Lottery_number_hash2, Lottery_number_hash3, Lottery_number_hash4, Lottery_number_hash5];
+
+        return (lottery, transfer_output.0, finalize_buy_private_token(lottery_hashes, total_amount, transfer_output.1, day, input_record.token_id));   
+    }
+
+    async function finalize_buy_private_token(Lottery_number_hash: [field; 5], total_amount: u64, f:Future, day: u16, tokenId: field){
+        f.await();
+        assert(winner_number.contains(day).not());
+        assert_eq(status.get(true), UNPAUSED_STATUS);
+        assert_eq(total_amount as u128 % current_amount_token.get(tokenId), 0u128);
+        let zero_hash : field = BHP256::hash_to_field( LotteryHash {
+            lottery:[0u8,0u8,0u8,0u8,0u8],
+            day: day
+        });
+        for i: u8 in 0u8..5u8 {
+            if(Lottery_number_hash[i] != zero_hash){
+                assert(is_available.contains(Lottery_number_hash[i]).not());
+                is_available.set(Lottery_number_hash[i], true);
+            }
+        }
+    }
+
     async transition generate_winner(day: u16) -> Future {
         return (finalize_generate_winner(day, self.caller));
     }
@@ -184,7 +320,8 @@ program lottery_game_puri.aleo{
         assert_eq(status.get(true), UNPAUSED_STATUS);
         let winner_lottery: [u8; 5] = winner_number.get(day);
         let matched_value: [u8; 5] = compareArray(lottery, winner_lottery);
-        let total_points: u64 = count_points(matched_value);
+        let prize: [u64; 5] = winning_price.get(true); 
+        let total_points: u64 = count_points(matched_value, prize);
         let current_balance: u64 = user_balance.get_or_use(owner_hash, 0u64);
         user_balance.set(owner_hash, total_points);
     }
@@ -297,23 +434,23 @@ program lottery_game_puri.aleo{
         return [count1, count2, count3, count4, count5];
     }
 
-    inline count_points(input: [u8; 5]) -> u64 {
+    inline count_points(input: [u8; 5], prize: [u64;5]) -> u64 {
         let total_point: u64 = 0u64;
         for i: u8 in 0u8..5u8{
             if input[i] == 1u8 {
-                total_point +=5000000u64;
+                total_point +=prize[1u8];
             }
             else if input[i] == 2u8 {
-                total_point +=10000000u64;
+                total_point +=prize[2u8];
             }
             else if input[i] == 3u8 {
-                total_point +=20000000u64;
+                total_point +=prize[3u8];
             }
             else if input[i] == 4u8 {
-                total_point +=40000000u64;
+                total_point +=prize[4u8];
             }
             else if input[i] == 5u8 {
-                total_point +=80000000u64;
+                total_point +=prize[5u8];
             }
             else {
                 total_point +=0u64;            

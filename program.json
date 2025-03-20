@@ -3,12 +3,6 @@
   "version": "0.0.0",
   "description": "",
   "license": "MIT",
-  "dependencies": [
-    {
-      "name": "credits.aleo",
-      "location": "network",
-      "network": "testnet",
-      "path": null
-    }
-  ]
+  "dependencies":[{"name":"credits.aleo","location":"network","endpoint":"https://api.explorer.aleo.org/v1","network":"testnet"},{"name":"token_registry.aleo","location":"network","endpoint":"https://api.explorer.aleo.org/v1","network":"testnet"}]
+
 }
