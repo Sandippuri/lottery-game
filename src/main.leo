@@ -1,7 +1,7 @@
 import credits.aleo;
 import token_registry.aleo; 
 
-program lottery_game_puri.aleo{
+program lottery_game_puri_v004.aleo{
 
     record Lottery {
         owner: address,
@@ -59,6 +59,16 @@ program lottery_game_puri.aleo{
 
     }
 
+    async transition change_lottery_price(price: u64) -> Future {
+        assert(price > 0u64);
+        return (finalize_change_lottery_price(self.caller, price));
+    }
+
+    async function finalize_change_lottery_price(from: address, price: u64) {
+        let current_owner: address = admin.get(true);
+        assert_eq(from, current_owner);
+        cuurent_amount.set(true, price);
+    }
 
     async transition set_token_price(token_id: field, price: u128) -> Future {
         assert(price > 0u128);
@@ -66,8 +76,7 @@ program lottery_game_puri.aleo{
     }
 
     async function finalize_set_token_price(owner: address, price:u128, token_id: field){
-        assert(admin.contains(true).not());
-        admin.set(true, owner);
+        assert_eq(admin.get(true), owner);
         current_amount_token.set(token_id, price);
     }
 
@@ -438,19 +447,19 @@ program lottery_game_puri.aleo{
         let total_point: u64 = 0u64;
         for i: u8 in 0u8..5u8{
             if input[i] == 1u8 {
-                total_point +=prize[1u8];
+                total_point +=prize[0u8];
             }
             else if input[i] == 2u8 {
-                total_point +=prize[2u8];
+                total_point +=prize[1u8];
             }
             else if input[i] == 3u8 {
-                total_point +=prize[3u8];
+                total_point +=prize[2u8];
             }
             else if input[i] == 4u8 {
-                total_point +=prize[4u8];
+                total_point +=prize[3u8];
             }
             else if input[i] == 5u8 {
-                total_point +=prize[5u8];
+                total_point +=prize[4u8];
             }
             else {
                 total_point +=0u64;            
